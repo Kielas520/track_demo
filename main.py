@@ -13,18 +13,26 @@ def main():
     main_window_name = "Tracker Main"
     mask_window_name = "Mask & Controls"
     cv2.namedWindow(main_window_name)
+    cv2.createTrackbar('Q_x', main_window_name, 600, 1000, nothing)
+    cv2.createTrackbar('Q_y', main_window_name, 600, 1000, nothing)
+    cv2.createTrackbar('Q_vx', main_window_name, 320, 1000, nothing)
+    cv2.createTrackbar('Q_vy', main_window_name, 320, 1000, nothing)
+    cv2.createTrackbar('R_x', main_window_name, 500, 1000, nothing)
+    cv2.createTrackbar('R_y', main_window_name, 500, 1000, nothing)
+    cv2.createTrackbar('Mode(0:man 1:auto 2:hyb)', main_window_name, 0, 2, nothing)
+    cv2.createTrackbar('PredictTime', main_window_name, 0, 500, nothing)
     cv2.namedWindow(mask_window_name)
 
     # 阈值滑动条...
     cv2.createTrackbar('H Min', mask_window_name, 160, 179, nothing)
-    cv2.createTrackbar('H Max', mask_window_name, 10, 179, nothing)
+    cv2.createTrackbar('H Max', mask_window_name, 179, 179, nothing)
     cv2.createTrackbar('S Min', mask_window_name, 100, 255, nothing)
     cv2.createTrackbar('S Max', mask_window_name, 255, 255, nothing)
     cv2.createTrackbar('V Min', mask_window_name, 100, 255, nothing)
     cv2.createTrackbar('V Max', mask_window_name, 255, 255, nothing)
-    cv2.createTrackbar('Min Area', mask_window_name, 500, 20000, nothing)
+    cv2.createTrackbar('Min Area', mask_window_name, 5000, 200000, nothing)
     cv2.createTrackbar('Max Area', mask_window_name, 50000, 300000, nothing)
-    cv2.createTrackbar('Font Scale', mask_window_name, 7, 20, nothing)
+    cv2.createTrackbar('Font Scale', mask_window_name, 13, 20, nothing)
 
     target = Target()
     tracker = TrackerManager()
@@ -47,6 +55,19 @@ def main():
         s_min, s_max = cv2.getTrackbarPos('S Min', mask_window_name), cv2.getTrackbarPos('S Max', mask_window_name)
         v_min, v_max = cv2.getTrackbarPos('V Min', mask_window_name), cv2.getTrackbarPos('V Max', mask_window_name)
         min_area, max_area = cv2.getTrackbarPos('Min Area', mask_window_name), cv2.getTrackbarPos('Max Area', mask_window_name)
+
+        q_x = cv2.getTrackbarPos('Q_x', main_window_name) / 100.0
+        q_y = cv2.getTrackbarPos('Q_y', main_window_name) / 100.0
+        q_vx = cv2.getTrackbarPos('Q_vx', main_window_name) / 100.0
+        q_vy = cv2.getTrackbarPos('Q_vy', main_window_name) / 100.0
+        r_x = cv2.getTrackbarPos('R_x', main_window_name) / 100.0
+        r_y = cv2.getTrackbarPos('R_y', main_window_name) / 100.0
+        kf.set_qr(q_x=q_x, q_y=q_y, q_vx=q_vx, q_vy=q_vy, r_x=r_x, r_y=r_y)
+
+        mode_idx = cv2.getTrackbarPos('Mode(0:man 1:auto 2:hyb)', main_window_name)
+        mode_map = {0: "manual", 1: "auto", 2: "hybrid"}
+        kf.set_mode(mode_map[mode_idx])
+        kf.set_predict_time(cv2.getTrackbarPos('PredictTime', main_window_name) / 100.0)
 
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         if h_min <= h_max:
