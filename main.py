@@ -28,7 +28,11 @@ def main():
 
     target = Target()
     tracker = TrackerManager()
-    kf = KalmanFilter2D()
+    kf = KalmanFilter2D(predict_mode="manual", predict_time=0.0,
+                 q_x=0.05, q_y=0.05,   # 位置过程噪声
+                 q_vx=0.1, q_vy=0.1,   # 速度过程噪声
+                 r_x=5.0,  r_y=5.0     # 观测噪声
+                )
 
     while True:
         dt = kf.tick()
@@ -75,19 +79,18 @@ def main():
             if success:
                 x, y, w, h = [int(v) for v in bbox]
                 cx, cy = x + w // 2, y + h // 2
-                
-                # 传入观测值修正 KF 状态
+
                 kf.update(cx, cy)
-                
+
+                filtered_x, filtered_y = kf.get_filtered_pos()
                 future_x, future_y = kf.predict_future()
 
-                # 绘制当前实际位置（绿色）
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
-                
-                # 绘制未来预测位置（红色十字）
-                cv2.drawMarker(frame, (future_x, future_y), (0, 0, 255), markerType=cv2.MARKER_CROSS, markerSize=15, thickness=2)
-                
+
+                cv2.circle(frame, (filtered_x, filtered_y), 8, (255, 0, 0), -1)
+
+                cv2.circle(frame, (future_x, future_y), 12, (0, 0, 255), 3)
+
                 cv2.putText(frame, f"Mode: {kf.predict_mode} | Delay: {dt*1000:.1f}ms", (10, 30), 
                             cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 0), 2)
             else:
