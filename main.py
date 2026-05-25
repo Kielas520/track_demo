@@ -1,10 +1,9 @@
-import time
 import cv2
 import numpy as np
 from src.target import Target
 from src.tracker import TrackerManager
 from src.Kalmanfilter import KalmanFilter2D
-from src.predictor import Predictor
+
 
 def nothing(x):
     pass
@@ -30,19 +29,11 @@ def main():
     target = Target()
     tracker = TrackerManager()
     kf = KalmanFilter2D()
-    
-    # 预测配置参数
-    predict_mode = "hybrid"  # "manual", "auto", "hybrid"
-    manual_predict_time = 0.1
-    last_tick = time.time()
 
     while True:
-        # 1. 计算系统真实循环延时
-        current_time = time.time()
-        dt = current_time - last_tick
-        last_tick = current_time
-        # 防止初始第一帧 dt 过大或为0导致除零错误
-        if dt == 0 or dt > 0.5: dt = 0.033
+        dt = kf.tick()
+        if dt == 0 or dt > 0.5:
+            dt = 0.033
 
         ret, frame = cap.read()
         if not ret: break
@@ -88,16 +79,7 @@ def main():
                 # 传入观测值修正 KF 状态
                 kf.update(cx, cy)
                 
-                # 计算预测时间
-                if predict_mode == "manual":
-                    future_dt = manual_predict_time
-                elif predict_mode == "auto":
-                    future_dt = dt
-                else: # hybrid
-                    future_dt = manual_predict_time + dt
-                    
-                # 核心：直接调用卡尔曼类内部的未来预测逻辑
-                future_x, future_y = kf.predict_future(future_dt)
+                future_x, future_y = kf.predict_future()
 
                 # 绘制当前实际位置（绿色）
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
@@ -106,7 +88,7 @@ def main():
                 # 绘制未来预测位置（红色十字）
                 cv2.drawMarker(frame, (future_x, future_y), (0, 0, 255), markerType=cv2.MARKER_CROSS, markerSize=15, thickness=2)
                 
-                cv2.putText(frame, f"Mode: {predict_mode} | Delay: {dt*1000:.1f}ms", (10, 30), 
+                cv2.putText(frame, f"Mode: {kf.predict_mode} | Delay: {dt*1000:.1f}ms", (10, 30), 
                             cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 0), 2)
             else:
                 cv2.putText(frame, "Lost! Searching...", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 255), 2)

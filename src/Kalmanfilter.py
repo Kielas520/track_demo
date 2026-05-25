@@ -1,10 +1,15 @@
+import time
 import cv2
 import numpy as np
 
 class KalmanFilter2D:
-    def __init__(self):
+    def __init__(self, predict_mode="hybrid", predict_time=0.1):
         self.kf = cv2.KalmanFilter(4, 2)
         self.set_params()
+        self.predict_mode = predict_mode
+        self.predict_time = predict_time
+        self.system_delay = 0.0
+        self.last_tick = time.time()
 
     def set_params(self):
         # 初始 dt 占位，每次 predict 时会动态更新
@@ -41,16 +46,36 @@ class KalmanFilter2D:
         measured = np.array([[np.float32(x)], [np.float32(y)]])
         self.kf.correct(measured)
 
-    def predict_future(self, future_time):
-        """
-        基于当前后验状态，前馈预测未来的位置
-        future_time: 想要预测的未来总时间（秒）
-        """
+    def tick(self):
+        current_time = time.time()
+        self.system_delay = current_time - self.last_tick
+        self.last_tick = current_time
+        return self.system_delay
+
+    def get_predict_dt(self):
+        if self.predict_mode == "manual":
+            return self.predict_time
+        elif self.predict_mode == "auto":
+            return self.system_delay
+        elif self.predict_mode == "hybrid":
+            return self.predict_time + self.system_delay
+        else:
+            return 0.0
+
+    def predict_future(self, future_time=None):
         state = self.kf.statePost
         x, y, vx, vy = state[0, 0], state[1, 0], state[2, 0], state[3, 0]
-        
-        # 匀速直线运动模型
+
+        if future_time is None:
+            future_time = self.get_predict_dt()
+
         pred_x = x + vx * future_time
         pred_y = y + vy * future_time
-        
+
         return int(pred_x), int(pred_y)
+
+    def set_mode(self, mode):
+        self.predict_mode = mode
+
+    def set_predict_time(self, t):
+        self.predict_time = t
