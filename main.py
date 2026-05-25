@@ -1,10 +1,10 @@
 import time
 import cv2
 import numpy as np
-from target import Target
-from tracker import TrackerManager
-from Kalmanfilter import KalmanFilter2D
-from predictor import Predictor
+from src.target import Target
+from src.tracker import TrackerManager
+from src.Kalmanfilter import KalmanFilter2D
+from src.predictor import Predictor
 
 def nothing(x):
     pass
