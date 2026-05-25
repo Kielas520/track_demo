@@ -1,52 +1,22 @@
+import time
 import cv2
 import numpy as np
+from target import Target
+from tracker import TrackerManager
+from Kalmanfilter import KalmanFilter2D
+from predictor import Predictor
 
 def nothing(x):
     pass
 
-class Target:
-    def __init__(self):
-        self.is_tracking = False
-        self.bbox = None
-        self.tracker = None
-        self.mode = "CSRT" # 新增：记录当前追踪类型
-
-    def start_tracking(self, frame, bbox, mode="CSRT"):
-        self.mode = mode
-        if mode == "CSRT":
-            params = cv2.TrackerCSRT_Params()
-            self.tracker = cv2.TrackerCSRT.create(params)
-        else: # 使用 KCF
-            self.tracker = cv2.TrackerKCF.create()
-        
-        self.tracker.init(frame, bbox)
-        self.bbox = bbox
-        self.is_tracking = True
-        self.frame_count = 0
-
-    def update(self, frame):
-        if not self.is_tracking:
-            return False, None
-        success, bbox = self.tracker.update(frame)
-        if success:
-            self.bbox = bbox
-            self.frame_count += 1
-        return success, bbox
-        
-    def reset(self):
-        self.is_tracking = False
-        self.bbox = None
-        self.tracker = None
-        self.frame_count = 0
-
 def main():
     cap = cv2.VideoCapture(0)
-    main_window_name = "CSRT Tracker"
+    main_window_name = "Tracker Main"
     mask_window_name = "Mask & Controls"
     cv2.namedWindow(main_window_name)
     cv2.namedWindow(mask_window_name)
 
-    # 滑动条设置
+    # 阈值滑动条...
     cv2.createTrackbar('H Min', mask_window_name, 160, 179, nothing)
     cv2.createTrackbar('H Max', mask_window_name, 10, 179, nothing)
     cv2.createTrackbar('S Min', mask_window_name, 100, 255, nothing)
@@ -58,8 +28,22 @@ def main():
     cv2.createTrackbar('Font Scale', mask_window_name, 7, 20, nothing)
 
     target = Target()
+    tracker = TrackerManager()
+    kf = KalmanFilter2D()
+    
+    # 预测配置参数
+    predict_mode = "hybrid"  # "manual", "auto", "hybrid"
+    manual_predict_time = 0.1
+    last_tick = time.time()
 
     while True:
+        # 1. 计算系统真实循环延时
+        current_time = time.time()
+        dt = current_time - last_tick
+        last_tick = current_time
+        # 防止初始第一帧 dt 过大或为0导致除零错误
+        if dt == 0 or dt > 0.5: dt = 0.033
+
         ret, frame = cap.read()
         if not ret: break
 
@@ -69,7 +53,6 @@ def main():
         v_min, v_max = cv2.getTrackbarPos('V Min', mask_window_name), cv2.getTrackbarPos('V Max', mask_window_name)
         min_area, max_area = cv2.getTrackbarPos('Min Area', mask_window_name), cv2.getTrackbarPos('Max Area', mask_window_name)
 
-        # 1. 始终运行检测逻辑
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         if h_min <= h_max:
             mask = cv2.inRange(hsv, np.array([h_min, s_min, v_min]), np.array([h_max, s_max, v_max]))
@@ -86,41 +69,67 @@ def main():
         if valid_contours:
             candidate_bbox = cv2.boundingRect(max(valid_contours, key=cv2.contourArea))
 
-        # 2. 状态机逻辑
         key = cv2.waitKey(1) & 0xFF
-        
-        # 键盘检测：按 'c' 用 CSRT，按 'k' 用 KCF
         target_mode = None
         if key == ord('c'): target_mode = "CSRT"
         if key == ord('k'): target_mode = "KCF"
 
         if target.is_tracking:
-            success, bbox = target.update(frame)
+            # 传入 dt 推进状态，保证滤波器内部的 vx, vy 准确
+            kf.predict(dt)
+
+            success, bbox = tracker.update(frame)
+            target.update_state(success, bbox)
+            
             if success:
                 x, y, w, h = [int(v) for v in bbox]
-                # 在画面上显示当前使用的算法
+                cx, cy = x + w // 2, y + h // 2
+                
+                # 传入观测值修正 KF 状态
+                kf.update(cx, cy)
+                
+                # 计算预测时间
+                if predict_mode == "manual":
+                    future_dt = manual_predict_time
+                elif predict_mode == "auto":
+                    future_dt = dt
+                else: # hybrid
+                    future_dt = manual_predict_time + dt
+                    
+                # 核心：直接调用卡尔曼类内部的未来预测逻辑
+                future_x, future_y = kf.predict_future(future_dt)
+
+                # 绘制当前实际位置（绿色）
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                cv2.putText(frame, f"{target.mode} | Frames: {target.frame_count}", (x, y - 10), 
+                cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
+                
+                # 绘制未来预测位置（红色十字）
+                cv2.drawMarker(frame, (future_x, future_y), (0, 0, 255), markerType=cv2.MARKER_CROSS, markerSize=15, thickness=2)
+                
+                cv2.putText(frame, f"Mode: {predict_mode} | Delay: {dt*1000:.1f}ms", (10, 30), 
                             cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 0), 2)
             else:
-                cv2.putText(frame, "STATUS: Lost! Searching...", (10, 30), 
-                            cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 255), 2)
-                # 丢失后，如果检测器再次看到目标，自动重连
+                cv2.putText(frame, "Lost! Searching...", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 255), 2)
                 if candidate_bbox:
-                    target.start_tracking(frame, candidate_bbox)
+                    tracker.start(frame, candidate_bbox, mode=target.mode)
+                    target.start(candidate_bbox, mode=target.mode)
+                    x, y, w, h = candidate_bbox
+                    kf.init(x + w // 2, y + h // 2)
         else:
-            # 检测模式
             if candidate_bbox:
                 x, y, w, h = candidate_bbox
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 255), 2)
-                cv2.putText(frame, "Found! Press 'c' for CSRT / 'k' for KCF", (x, y - 10), 
-                            cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 255), 2)
+                cv2.putText(frame, "Found! 'c' for CSRT / 'k' for KCF", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 255), 2)
             
-            # 检测到候选框时，根据按键启动
             if target_mode and candidate_bbox:
-                target.start_tracking(frame, candidate_bbox, mode=target_mode)
+                tracker.start(frame, candidate_bbox, mode=target_mode)
+                target.start(candidate_bbox, mode=target_mode)
+                x, y, w, h = candidate_bbox
+                kf.init(x + w // 2, y + h // 2)
 
-        if key == ord('r'): target.reset()
+        if key == ord('r'): 
+            target.reset()
+            tracker.reset()
         if key == ord('q'): break
 
         cv2.imshow(mask_window_name, mask)
