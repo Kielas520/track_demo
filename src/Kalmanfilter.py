@@ -2,10 +2,6 @@ import time
 import cv2
 import numpy as np
 
-import time
-import cv2
-import numpy as np
-
 class KalmanFilter3D:
     def __init__(self, predict_mode="hybrid", predict_time=0.1,
                  q_x=1e-2, q_y=1e-2, q_z=1e-2, 
@@ -50,7 +46,6 @@ class KalmanFilter3D:
         self.kf.errorCovPost = np.eye(6, dtype=np.float32) * 1.0
 
     def _apply_qr(self):
-        # 过程噪声 Q
         self.kf.processNoiseCov = np.array([
             [self.q_x, 0, 0, 0, 0, 0],
             [0, self.q_y, 0, 0, 0, 0],
@@ -60,12 +55,25 @@ class KalmanFilter3D:
             [0, 0, 0, 0, 0, self.q_vz]
         ], np.float32)
         
-        # 测量噪声 R
         self.kf.measurementNoiseCov = np.array([
             [self.r_x, 0, 0],
             [0, self.r_y, 0],
             [0, 0, self.r_z]
         ], np.float32)
+
+    def set_qr(self, q_x=None, q_y=None, q_z=None,
+               q_vx=None, q_vy=None, q_vz=None,
+               r_x=None, r_y=None, r_z=None):
+        if q_x is not None: self.q_x = q_x
+        if q_y is not None: self.q_y = q_y
+        if q_z is not None: self.q_z = q_z
+        if q_vx is not None: self.q_vx = q_vx
+        if q_vy is not None: self.q_vy = q_vy
+        if q_vz is not None: self.q_vz = q_vz
+        if r_x is not None: self.r_x = r_x
+        if r_y is not None: self.r_y = r_y
+        if r_z is not None: self.r_z = r_z
+        self._apply_qr()
 
     def init(self, x, y, z):
         self.kf.statePost = np.array([[np.float32(x)], [np.float32(y)], [np.float32(z)], 
