@@ -103,34 +103,29 @@ def main():
 
                 kf.update(cx, cy)
 
-                filtered_x, filtered_y = kf.get_filtered_pos()
-                future_x, future_y = kf.predict_future()
-
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-
-                cv2.circle(frame, (filtered_x, filtered_y), 8, (255, 0, 0), -1)
-
-                cv2.circle(frame, (future_x, future_y), 12, (0, 0, 255), 3)
-
                 if w > 0 and h > 0:
                     x1, y1 = max(0, x), max(0, y)
                     x2, y2 = min(frame.shape[1], x + w), min(frame.shape[0], y + h)
                     roi = frame[y1:y2, x1:x2]
-                    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-                    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-                    edges = cv2.Canny(blurred, 50, 150)
-                    kernel_e = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-                    closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel_e)
-                    edge_contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                    for cnt in edge_contours:
-                        area = cv2.contourArea(cnt)
-                        if area < 50:
-                            continue
-                        offset_cnt = cnt + np.array([[x1, y1]], dtype=np.int32)
-                        cv2.drawContours(frame, [offset_cnt], -1, (0, 255, 255), 2)
-                        bx, by, bw, bh = cv2.boundingRect(cnt)
-                        cv2.putText(frame, f"{area:.0f}", (x1 + bx, y1 + by - 5),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
+                    hsv_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+                    if h_min <= h_max:
+                        roi_mask = cv2.inRange(hsv_roi, np.array([h_min, s_min, v_min]), np.array([h_max, s_max, v_max]))
+                    else:
+                        roi_mask = cv2.bitwise_or(
+                            cv2.inRange(hsv_roi, np.array([h_min, s_min, v_min]), np.array([179, s_max, v_max])),
+                            cv2.inRange(hsv_roi, np.array([0, s_min, v_min]), np.array([h_max, s_max, v_max])))
+                    roi_mask = cv2.morphologyEx(roi_mask, cv2.MORPH_CLOSE, kernel)
+                    area = cv2.countNonZero(roi_mask)
+                    frame[y1:y2, x1:x2][roi_mask > 0] = (0, 255, 255)
+                    cv2.putText(frame, f"Area:{area}", (x1, y1 - 5),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
+
+                filtered_x, filtered_y = kf.get_filtered_pos()
+                future_x, future_y = kf.predict_future()
+
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                cv2.circle(frame, (filtered_x, filtered_y), 8, (255, 0, 0), -1)
+                cv2.circle(frame, (future_x, future_y), 12, (0, 0, 255), 3)
 
                 cv2.putText(frame, f"Mode: {kf.predict_mode} | Delay: {dt*1000:.1f}ms", (10, 30), 
                             cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 0), 2)
