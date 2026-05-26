@@ -30,8 +30,8 @@ def main():
     cv2.createTrackbar('S Max', mask_window_name, 255, 255, nothing)
     cv2.createTrackbar('V Min', mask_window_name, 100, 255, nothing)
     cv2.createTrackbar('V Max', mask_window_name, 255, 255, nothing)
-    cv2.createTrackbar('Min Area', mask_window_name, 5000, 200000, nothing)
-    cv2.createTrackbar('Max Area', mask_window_name, 50000, 300000, nothing)
+    cv2.createTrackbar('Min Area', mask_window_name, 25422, 200000, nothing)
+    cv2.createTrackbar('Max Area', mask_window_name, 300000, 300000, nothing)
     cv2.createTrackbar('Font Scale', mask_window_name, 13, 20, nothing)
 
     target = Target()
@@ -111,6 +111,26 @@ def main():
                 cv2.circle(frame, (filtered_x, filtered_y), 8, (255, 0, 0), -1)
 
                 cv2.circle(frame, (future_x, future_y), 12, (0, 0, 255), 3)
+
+                if w > 0 and h > 0:
+                    x1, y1 = max(0, x), max(0, y)
+                    x2, y2 = min(frame.shape[1], x + w), min(frame.shape[0], y + h)
+                    roi = frame[y1:y2, x1:x2]
+                    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+                    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+                    edges = cv2.Canny(blurred, 50, 150)
+                    kernel_e = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+                    closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel_e)
+                    edge_contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                    for cnt in edge_contours:
+                        area = cv2.contourArea(cnt)
+                        if area < 50:
+                            continue
+                        offset_cnt = cnt + np.array([[x1, y1]], dtype=np.int32)
+                        cv2.drawContours(frame, [offset_cnt], -1, (0, 255, 255), 2)
+                        bx, by, bw, bh = cv2.boundingRect(cnt)
+                        cv2.putText(frame, f"{area:.0f}", (x1 + bx, y1 + by - 5),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
 
                 cv2.putText(frame, f"Mode: {kf.predict_mode} | Delay: {dt*1000:.1f}ms", (10, 30), 
                             cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 0), 2)
