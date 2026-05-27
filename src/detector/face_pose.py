@@ -37,7 +37,7 @@ def _euler_to_rvec(roll, pitch, yaw):
 
 class FacePoseDetector:
     def __init__(self, dis_mode=1, max_faces=1,
-                 min_detection_confidence=0.5, min_tracking_confidence=0.5,
+                 min_detection_confidence=0.5,
                  model_path=None):
         self.dis_mode = dis_mode
 
@@ -50,10 +50,9 @@ class FacePoseDetector:
         base_opts = base_options.BaseOptions(model_asset_path=model_path)
         opts = vision.FaceLandmarkerOptions(
             base_options=base_opts,
-            running_mode=RunningMode.VIDEO,
+            running_mode=RunningMode.IMAGE,
             num_faces=max_faces,
             min_face_detection_confidence=min_detection_confidence,
-            min_tracking_confidence=min_tracking_confidence,
             min_face_presence_confidence=0.5,
             output_facial_transformation_matrixes=True,
         )
@@ -62,7 +61,6 @@ class FacePoseDetector:
         self.img_raw = None
         self.img_res = None
         self.res = None
-        self._frame_counter = 0
         self.camera_matrix = None
         self.dist_coeffs = np.zeros((4, 1), dtype=np.float64)
 
@@ -82,8 +80,7 @@ class FacePoseDetector:
 
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = Image(image_format=ImageFormat.SRGB, data=rgb)
-        self._frame_counter += 1
-        result = self.landmarker.detect_for_video(mp_image, self._frame_counter)
+        result = self.landmarker.detect(mp_image)
 
         self.res = []
 
