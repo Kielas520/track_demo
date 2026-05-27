@@ -14,9 +14,9 @@ def _draw_kf_axis(img, camera_matrix, dist_coeffs, rvec, tvec, length=80):
     pts, _ = cv2.projectPoints(axis_3d, rvec, tvec, camera_matrix, dist_coeffs)
     pts = pts.reshape(-1, 2).astype(int)
     origin = tuple(pts[0])
-    cv2.line(img, origin, tuple(pts[1]), (0, 255, 255), 3)  # X: yellow
-    cv2.line(img, origin, tuple(pts[2]), (0, 255, 255), 3)  # Y: yellow
-    cv2.line(img, origin, tuple(pts[3]), (0, 255, 255), 3)  # Z: yellow
+    cv2.line(img, origin, tuple(pts[1]), (0, 255, 255), 3)
+    cv2.line(img, origin, tuple(pts[2]), (0, 255, 255), 3)
+    cv2.line(img, origin, tuple(pts[3]), (0, 255, 255), 3)
     cv2.circle(img, origin, 5, (0, 255, 255), -1)
 
 
@@ -32,11 +32,18 @@ def main():
 
     fx, fy, fz = 0.0, 0.0, 0.0
     froll, fpitch, fyaw = 0.0, 0.0, 0.0
+    prev_tick = cv2.getTickCount()
+    tick_freq = cv2.getTickFrequency()
 
     while True:
         ret, frame = cap.read()
         if not ret:
             break
+
+        cur_tick = cv2.getTickCount()
+        dt = (cur_tick - prev_tick) / tick_freq
+        prev_tick = cur_tick
+        dt = max(dt, 0.001)
 
         detections = detector.detect(frame)
 
@@ -49,7 +56,6 @@ def main():
                 kf.init_state(tx, ty, tz, roll, pitch, yaw)
                 kf_initialized = True
 
-            dt = 0.033
             kf.predict(dt)
             kf.update([tx, ty, tz, roll, pitch, yaw])
 
@@ -73,6 +79,8 @@ def main():
 
             cv2.putText(output, f"KF Y:{fyaw:6.1f} P:{fpitch:6.1f} R:{froll:6.1f}",
                         (10, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+            cv2.putText(output, f"dt:{dt*1000:.1f}ms",
+                        (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
 
         cv2.imshow(window_name, output)
 

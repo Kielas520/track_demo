@@ -11,7 +11,7 @@ def _fast_ekf_update_inplace(X, P, H, R, Y, I):
     S = H @ P @ H.T + R
     S_inv_Y = np.linalg.solve(S, Y)
     mahalanobis_sq = np.dot(Y, S_inv_Y)
-    if mahalanobis_sq > 30.0:
+    if mahalanobis_sq > 200.0:
         return False
     K = np.linalg.solve(S.T, (P @ H.T).T).T
     X[:] = X + K @ Y
@@ -44,8 +44,8 @@ class FaceKalmanFilter6D:
         for i in range(1, 12, 2):
             self.P[i, i] = 50.0
 
-        self.s2q_pos = 0.001
-        self.s2q_rot = 0.1
+        self.s2q_pos = 10.0
+        self.s2q_rot = 100.0
         self.r_pos_factor = 0.01
         self.r_rot_factor = 0.5
 
@@ -95,17 +95,18 @@ class FaceKalmanFilter6D:
         self.Q.fill(0)
         t2 = dt ** 2
         t3 = dt ** 3
+        t4 = dt ** 4
 
         for i in range(3):
             idx = i * 2
-            self.Q[idx, idx] = self.s2q_pos
-            self.Q[idx + 1, idx] = t2 / 2 * self.s2q_pos
-            self.Q[idx, idx + 1] = t2 / 2 * self.s2q_pos
+            self.Q[idx, idx] = t4 / 4 * self.s2q_pos
+            self.Q[idx + 1, idx] = t3 / 2 * self.s2q_pos
+            self.Q[idx, idx + 1] = t3 / 2 * self.s2q_pos
             self.Q[idx + 1, idx + 1] = t2 * self.s2q_pos
 
         for i in range(3, 6):
             idx = i * 2
-            self.Q[idx, idx] = self.s2q_rot
+            self.Q[idx, idx] = t4 / 4 * self.s2q_rot
             self.Q[idx + 1, idx] = t3 / 2 * self.s2q_rot
             self.Q[idx, idx + 1] = t3 / 2 * self.s2q_rot
             self.Q[idx + 1, idx + 1] = t2 * self.s2q_rot
