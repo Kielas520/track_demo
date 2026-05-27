@@ -139,30 +139,49 @@ def main():
                 future_x, future_y, future_z = kf.predict_future()
 
                 # ====== 可视化 ======
+                
+                # 1. 计算动态缩放比例 dyn_scale (以 w+h=300 为基准 1.0)
+                # 设置最小缩放比例为 0.3，避免目标过小时标尺完全看不见
+                dyn_scale = max(0.3, (w + h) / 300.0)
+                
+                # 2. 根据 dyn_scale 动态计算所有的几何尺寸与粗细
+                line_thick = max(1, int(2 * dyn_scale))
+                cross_size = max(5, int(20 * dyn_scale))
+                fil_radius = max(2, int(6 * dyn_scale))
+                pred_radius = max(3, int(12 * dyn_scale))
+                
+                # 3. 颜色配置 (针对红色水瓶目标，使用高对比度的冷色或明亮色)
+                color_bbox = (0, 255, 0)       # 绿色 (边界框)
+                color_obs = (255, 255, 0)      # 青色 (观测点中心)
+                color_fil = (255, 255, 255)    # 白色 (滤波点中心)
+                color_pred = (0, 255, 255)     # 黄色 (预测点中心)
 
-                # 绿色空心矩形: 跟踪器原始 bbox
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                # --- 绘制开始 ---
+                
+                # A. 边界框
+                cv2.rectangle(frame, (x, y), (x + w, y + h), color_bbox, line_thick)
 
-                # 蓝色正方形框: 表示当前帧检测/跟踪到的目标原始中心点 (cx, cy)
-                # 设定半边长为 15，比半径 12 的红圆稍大
-                half_side = 15
-                cv2.rectangle(frame, 
-                              (cx - half_side, cy - half_side), 
-                              (cx + half_side, cy + half_side), 
-                              (255, 0, 0), 2)
+                # B. 状态趋势连接线 (观测 -> 滤波 -> 预测)
+                # 使用细线连接，直观展示当前物体的运动趋势与滤波器的工作状态
+                cv2.line(frame, (cx, cy), (filtered_x, filtered_y), (200, 200, 200), max(1, line_thick - 1), cv2.LINE_AA)
+                cv2.line(frame, (filtered_x, filtered_y), (future_x, future_y), color_pred, line_thick, cv2.LINE_AA)
 
-                # 蓝色实心圆: 卡尔曼滤波后的平滑位置
-                cv2.circle(frame, (filtered_x, filtered_y), 8, (255, 0, 0), -1)
+                # C. 观测值 (使用十字准星 cv2.MARKER_CROSS 替代方形)
+                cv2.drawMarker(frame, (cx, cy), color_obs, markerType=cv2.MARKER_CROSS, markerSize=cross_size, thickness=line_thick)
 
-                # 红色空心圆: 前馈预测的未来位置
-                cv2.circle(frame, (future_x, future_y), 12, (0, 0, 255), 3)
+                # D. 滤波值 (白色实心圆)
+                cv2.circle(frame, (filtered_x, filtered_y), fil_radius, color_fil, -1, cv2.LINE_AA)
 
+                # E. 预测值 (黄色空心圆 + 内部斜十字)
+                cv2.circle(frame, (future_x, future_y), pred_radius, color_pred, line_thick, cv2.LINE_AA)
+                cv2.drawMarker(frame, (future_x, future_y), color_pred, markerType=cv2.MARKER_TILTED_CROSS, markerSize=pred_radius, thickness=line_thick)
+
+                # 状态文本输出 (文本粗细也跟随界面字体 scale 缩放)
+                text_thick = max(1, int(2 * font_scale))
                 cv2.putText(frame,
-                            f"Mode: {kf.predict_mode} | "
-                            f"Delay: {dt*1000:.1f}ms | "
-                            f"z:{filtered_z}",
+                            f"Mode: {kf.predict_mode} | Delay: {dt*1000:.1f}ms | z:{int(filtered_z)}",
                             (10, 30),
-                            cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 0), 2)
+                            cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 0), text_thick)
             else:
                 cv2.putText(frame, "Lost! Searching...",
                             (10, 30), cv2.FONT_HERSHEY_SIMPLEX, font_scale,
