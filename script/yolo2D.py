@@ -3,7 +3,7 @@ import numpy as np
 from src.target import Target
 from src.tracker import TrackerManager
 from src.Kalmanfilter import KalmanFilter3D
-from src.detector import Detector
+from src.detector.detector2d import Detector2D
 
 
 def nothing(x):
@@ -52,7 +52,7 @@ def main():
 
     # ======================== 4. 组件初始化 ===============================
 
-    detector = Detector(cls_id=39, device="mps", dis_mode=1)  
+    detector = Detector2D(cls_id=39, device="mps", dis_mode=1)  
     target = Target()                                                      
     tracker = TrackerManager()                                             
 

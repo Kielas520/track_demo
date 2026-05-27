@@ -16,15 +16,15 @@
 """
 
 # 导入项目中的各个模块，以便于外部使用
-from .detector import Detector
+from .detector import Detector2D, Detector3D
 from .tracker import TrackerManager
 from .Kalmanfilter import KalmanFilter3D
 from .target import Target
 
-# 定义包的公共接口
 __all__ = [
-    'Detector',
-    'TrackerManager', 
+    'Detector2D',
+    'Detector3D',
+    'TrackerManager',
     'KalmanFilter3D',
     'Target'
 ]
