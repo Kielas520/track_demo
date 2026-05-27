@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from src.target import Target
 from src.tracker import TrackerManager
-from src.Kalmanfilter import KalmanFilter3D
+from src.Kalmanfilter.Kalmanfilter3D import KalmanFilter3D
 from src.detector.detector2d import Detector2D
 
 

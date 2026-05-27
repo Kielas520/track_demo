@@ -18,7 +18,7 @@
 # 导入项目中的各个模块，以便于外部使用
 from .detector import Detector2D, Detector3D
 from .tracker import TrackerManager
-from .Kalmanfilter import KalmanFilter3D
+from .Kalmanfilter.Kalmanfilter3D import KalmanFilter3D
 from .target import Target
 
 __all__ = [
