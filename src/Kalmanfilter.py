@@ -74,8 +74,8 @@ class KalmanFilter3D:
         self.last_raw_z = None
 
     def _apply_r(self):
-        """更新测量噪声矩阵 R"""
-        self.R = np.diag([self.r_x, self.r_y, self.r_z]).astype(np.float64)
+        """更新测量噪声矩阵 R (将传入的标准差转换为方差)"""
+        self.R = np.diag([self.r_x**2, self.r_y**2, self.r_z**2]).astype(np.float64)
 
     def set_qr(self, q_x=None, q_y=None, q_z=None,
                q_vx=None, q_vy=None, q_vz=None,

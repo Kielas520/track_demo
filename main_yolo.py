@@ -27,21 +27,24 @@ def main():
     cv2.createTrackbar('[YOLO] Font Scale', window_name, 13, 20, nothing)       
 
     # ==================== 3. 卡尔曼滤波器参数滑动条 (带 [MAIN] 前缀) ===========
+    
+    # --- 过程噪声 Q (位置部分，标准差：通常很小，仅代表非速度因素导致的位移) ---
+    # 除以 100.0，范围 [0.0, 5.0]
+    cv2.createTrackbar('[MAIN] Q_x', window_name, 50, 500, nothing)   # 默认 0.1
+    cv2.createTrackbar('[MAIN] Q_y', window_name, 50, 500, nothing)   # 默认 0.1
+    cv2.createTrackbar('[MAIN] Q_z', window_name, 50, 500, nothing)   # 默认 0.5
 
-    # --- 过程噪声 Q (位置部分) ---
-    cv2.createTrackbar('[MAIN] Q_x', window_name, 600, 1000, nothing)   
-    cv2.createTrackbar('[MAIN] Q_y', window_name, 600, 1000, nothing)   
-    cv2.createTrackbar('[MAIN] Q_z', window_name, 600, 1000, nothing)   
+    # --- 过程噪声 Q (速度部分，标准差：代表物体运动加速度产生的不确定性) ---
+    # 除以 1.0，范围 [0, 1000] 像素/秒
+    cv2.createTrackbar('[MAIN] Q_vx', window_name, 250, 1000, nothing) # 默认 100
+    cv2.createTrackbar('[MAIN] Q_vy', window_name, 250, 1000, nothing) # 默认 100
+    cv2.createTrackbar('[MAIN] Q_vz', window_name, 500, 5000, nothing) # 默认 500 (面积变化率波动大)
 
-    # --- 过程噪声 Q (速度部分) ---
-    cv2.createTrackbar('[MAIN] Q_vx', window_name, 320, 1000, nothing)  
-    cv2.createTrackbar('[MAIN] Q_vy', window_name, 320, 1000, nothing)  
-    cv2.createTrackbar('[MAIN] Q_vz', window_name, 320, 1000, nothing)  
-
-    # --- 测量噪声 R ---
-    cv2.createTrackbar('[MAIN] R_x', window_name, 500, 1000, nothing)   
-    cv2.createTrackbar('[MAIN] R_y', window_name, 500, 1000, nothing)   
-    cv2.createTrackbar('[MAIN] R_z', window_name, 500, 1000, nothing)   
+    # --- 测量噪声 R (观测部分，标准差：代表 YOLO 检测框的抖动像素) ---
+    # 除以 1.0，范围 x/y: [0, 50] 像素, z: [0, 5000] 面积像素
+    cv2.createTrackbar('[MAIN] R_x', window_name, 2, 50, nothing)      # 默认 5 像素抖动
+    cv2.createTrackbar('[MAIN] R_y', window_name, 2, 50, nothing)      # 默认 5 像素抖动
+    cv2.createTrackbar('[MAIN] R_z', window_name, 500, 5000, nothing)  # 默认 500 面积抖动   
 
     # --- 预测配置 ---
     cv2.createTrackbar('[MAIN] Mode(0:m 1:a 2:h)', window_name, 0, 2, nothing)  
@@ -80,15 +83,20 @@ def main():
         font_scale = cv2.getTrackbarPos('[YOLO] Font Scale', window_name) / 10.0
         conf_thresh = cv2.getTrackbarPos('[YOLO] Conf(%)', window_name) / 100.0
 
+        # Q位置 (缩放 100)
         q_x = cv2.getTrackbarPos('[MAIN] Q_x', window_name) / 100.0
         q_y = cv2.getTrackbarPos('[MAIN] Q_y', window_name) / 100.0
         q_z = cv2.getTrackbarPos('[MAIN] Q_z', window_name) / 100.0
-        q_vx = cv2.getTrackbarPos('[MAIN] Q_vx', window_name) / 100.0
-        q_vy = cv2.getTrackbarPos('[MAIN] Q_vy', window_name) / 100.0
-        q_vz = cv2.getTrackbarPos('[MAIN] Q_vz', window_name) / 100.0
-        r_x = cv2.getTrackbarPos('[MAIN] R_x', window_name) / 100.0
-        r_y = cv2.getTrackbarPos('[MAIN] R_y', window_name) / 100.0
-        r_z = cv2.getTrackbarPos('[MAIN] R_z', window_name) / 100.0
+        
+        # Q速度 (无需缩放，代表 像素/秒)
+        q_vx = float(cv2.getTrackbarPos('[MAIN] Q_vx', window_name))
+        q_vy = float(cv2.getTrackbarPos('[MAIN] Q_vy', window_name))
+        q_vz = float(cv2.getTrackbarPos('[MAIN] Q_vz', window_name))
+        
+        # R观测 (无需缩放，直接作为标准差)
+        r_x = float(cv2.getTrackbarPos('[MAIN] R_x', window_name))
+        r_y = float(cv2.getTrackbarPos('[MAIN] R_y', window_name))
+        r_z = float(cv2.getTrackbarPos('[MAIN] R_z', window_name))
         
         kf.set_qr(q_x=q_x, q_y=q_y, q_z=q_z,
                   q_vx=q_vx, q_vy=q_vy, q_vz=q_vz,
