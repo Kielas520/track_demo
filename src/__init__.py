@@ -7,4 +7,24 @@
 - CSRT / KCF 跟踪器
 - 3D 卡尔曼滤波器 (x, y, 面积)
 - 前馈预测（补偿系统延迟）
+
+模块索引:
+- Detector: 基于 YOLO 的目标检测器
+- TrackerManager: OpenCV 跟踪器管理器 (CSRT/KCF)
+- KalmanFilter3D: 3D 卡尔曼滤波器
+- Target: 目标状态管理器
 """
+
+# 导入项目中的各个模块，以便于外部使用
+from .detector import Detector
+from .tracker import TrackerManager
+from .Kalmanfilter import KalmanFilter3D
+from .target import Target
+
+# 定义包的公共接口
+__all__ = [
+    'Detector',
+    'TrackerManager', 
+    'KalmanFilter3D',
+    'Target'
+]
