@@ -127,17 +127,34 @@ def main():
             target.update_state(success, bbox)
 
             if success:
+                # ---------- 跟踪成功 ----------
                 x, y, w, h = [int(v) for v in bbox]
-                cx, cy = x + w // 2, y + h // 2        
+                cx, cy = x + w // 2, y + h // 2        # 观测值：检测到的目标中心点
                 z = max(0, w * h)  
 
+                # 【校正步】将观测值送入卡尔曼滤波器
                 kf.update(cx, cy, z)
 
                 filtered_x, filtered_y, filtered_z = kf.get_filtered_pos()
                 future_x, future_y, future_z = kf.predict_future()
 
+                # ====== 可视化 ======
+
+                # 绿色空心矩形: 跟踪器原始 bbox
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+                # 蓝色正方形框: 表示当前帧检测/跟踪到的目标原始中心点 (cx, cy)
+                # 设定半边长为 15，比半径 12 的红圆稍大
+                half_side = 15
+                cv2.rectangle(frame, 
+                              (cx - half_side, cy - half_side), 
+                              (cx + half_side, cy + half_side), 
+                              (255, 0, 0), 2)
+
+                # 蓝色实心圆: 卡尔曼滤波后的平滑位置
                 cv2.circle(frame, (filtered_x, filtered_y), 8, (255, 0, 0), -1)
+
+                # 红色空心圆: 前馈预测的未来位置
                 cv2.circle(frame, (future_x, future_y), 12, (0, 0, 255), 3)
 
                 cv2.putText(frame,
