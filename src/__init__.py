@@ -16,15 +16,17 @@
 """
 
 # 导入项目中的各个模块，以便于外部使用
-from .detector import Detector2D, Detector3D
+from .detector import Detector2D, FacePoseDetector
 from .tracker import TrackerManager
-from .Kalmanfilter.Kalmanfilter3D import KalmanFilter3D
+from .Kalmanfilter import KalmanFilter3D, ExtendedKalmanFilter, FaceKalmanFilter6D
 from .target import Target
 
 __all__ = [
     'Detector2D',
-    'Detector3D',
+    'FacePoseDetector',
     'TrackerManager',
     'KalmanFilter3D',
-    'Target'
+    'ExtendedKalmanFilter',
+    'FaceKalmanFilter6D',
+    'Target',
 ]
