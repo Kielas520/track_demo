@@ -1,6 +1,23 @@
 import cv2
-from src.detector.face_pose import FacePoseDetector
+import numpy as np
+from src.detector.face_pose import FacePoseDetector, _euler_to_rvec
 from src.Kalmanfilter.Kalmanfilter6D import FaceKalmanFilter6D
+
+
+def _draw_kf_axis(img, camera_matrix, dist_coeffs, rvec, tvec, length=80):
+    axis_3d = np.float32([
+        [0, 0, 0],
+        [length, 0, 0],
+        [0, length, 0],
+        [0, 0, length],
+    ])
+    pts, _ = cv2.projectPoints(axis_3d, rvec, tvec, camera_matrix, dist_coeffs)
+    pts = pts.reshape(-1, 2).astype(int)
+    origin = tuple(pts[0])
+    cv2.line(img, origin, tuple(pts[1]), (0, 255, 255), 3)  # X: yellow
+    cv2.line(img, origin, tuple(pts[2]), (0, 255, 255), 3)  # Y: yellow
+    cv2.line(img, origin, tuple(pts[3]), (0, 255, 255), 3)  # Z: yellow
+    cv2.circle(img, origin, 5, (0, 255, 255), -1)
 
 
 def main():
@@ -13,7 +30,8 @@ def main():
     kf = FaceKalmanFilter6D()
     kf_initialized = False
 
-    fyaw, fpitch, froll = 0.0, 0.0, 0.0
+    fx, fy, fz = 0.0, 0.0, 0.0
+    froll, fpitch, fyaw = 0.0, 0.0, 0.0
 
     while True:
         ret, frame = cap.read()
@@ -45,11 +63,16 @@ def main():
         output = detector.draw()
 
         if output is None:
-            output = frame
+            output = frame.copy()
 
-        if kf_initialized:
+        if kf_initialized and detections and len(detections) > 0:
+            rvec_kf = _euler_to_rvec(froll, fpitch, fyaw)
+            tvec_kf = np.array([[fx], [fy], [fz]], dtype=np.float64)
+            _draw_kf_axis(output, detector.camera_matrix,
+                          detector.dist_coeffs, rvec_kf, tvec_kf, length=80)
+
             cv2.putText(output, f"KF Y:{fyaw:6.1f} P:{fpitch:6.1f} R:{froll:6.1f}",
-                        (10, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
+                        (10, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
 
         cv2.imshow(window_name, output)
 

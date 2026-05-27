@@ -1,42 +1,22 @@
 import numpy as np
 from numba import njit
-import math
 
 @njit(fastmath=True, nogil=True)
 def _fast_ekf_predict(X, P, F, Q):
-    # 将复杂的矩阵运算挪到这里，Numba 会将其编译为机器码
-    # 使用 [:] 强制将计算结果写回传入的原始内存地址,不用反复传值
     X[:] = F @ X
     P[:] = F @ P @ F.T + Q
 
 @njit(fastmath=True, nogil=True)
 def _fast_ekf_update_inplace(X, P, H, R, Y, I):
-    # 计算 Innovation 协方差 S
     S = H @ P @ H.T + R
-    
-    # --- 【新增：马氏距离计算与野值剔除】 ---
-    # 计算马氏距离的平方: D^2 = Y^T * S^-1 * Y
-    # 使用 np.linalg.solve 求解 S^-1 * Y
     S_inv_Y = np.linalg.solve(S, Y)
     mahalanobis_sq = np.dot(Y, S_inv_Y)
-    
-    # 自由度为 4 (x, y, z, yaw) 的卡方分布，99% 置信区间的临界值约为 13.28
-    # 如果马氏距离平方大于该阈值，判定为野值，直接拒绝更新，返回纯预测值
-    if mahalanobis_sq > 30.0: 
-        # 拒绝更新，返回 False
+    if mahalanobis_sq > 30.0:
         return False
-    # ----------------------------------------
-
-    # 计算卡尔曼增益 K
     K = np.linalg.solve(S.T, (P @ H.T).T).T
-
-    # 更新状态 X
     X[:] = X + K @ Y
-
-    # Joseph form 更新 P (保证正定性)
     I_KH = I - K @ H
     P[:] = I_KH @ P @ I_KH.T + K @ R @ K.T
-
     return True
 
 

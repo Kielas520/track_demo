@@ -9,16 +9,30 @@ import os
 
 LANDMARK_INDICES = [1, 33, 263, 61, 291, 199]
 
-MODEL_POINTS = np.array([
-    [0.0, 0.0, 0.0],
-    [-35.0, -30.0, -40.0],
-    [35.0, -30.0, -40.0],
-    [-28.0, 30.0, -55.0],
-    [28.0, 30.0, -55.0],
-    [0.0, 65.0, -60.0],
-], dtype=np.float64)
-
 DEFAULT_MODEL = "models/face_landmarker.task"
+
+
+def _mat_to_euler(R):
+    sy = np.sqrt(R[0, 0] ** 2 + R[1, 0] ** 2)
+    if sy < 1e-6:
+        yaw = np.arctan2(-R[1, 2], R[1, 1])
+        pitch = np.arctan2(-R[2, 0], sy)
+        roll = 0.0
+    else:
+        yaw = np.arctan2(R[1, 0], R[0, 0])
+        pitch = np.arctan2(-R[2, 0], sy)
+        roll = np.arctan2(R[2, 1], R[2, 2])
+    return roll, pitch, yaw
+
+
+def _euler_to_rvec(roll, pitch, yaw):
+    r, p, y = np.radians(roll), np.radians(pitch), np.radians(yaw)
+    Rx = np.array([[1, 0, 0], [0, np.cos(r), -np.sin(r)], [0, np.sin(r), np.cos(r)]])
+    Ry = np.array([[np.cos(p), 0, np.sin(p)], [0, 1, 0], [-np.sin(p), 0, np.cos(p)]])
+    Rz = np.array([[np.cos(y), -np.sin(y), 0], [np.sin(y), np.cos(y), 0], [0, 0, 1]])
+    R = Rz @ Ry @ Rx
+    rvec, _ = cv2.Rodrigues(R)
+    return rvec
 
 
 class FacePoseDetector:
@@ -41,7 +55,7 @@ class FacePoseDetector:
             min_face_detection_confidence=min_detection_confidence,
             min_tracking_confidence=min_tracking_confidence,
             min_face_presence_confidence=0.5,
-            output_facial_transformation_matrixes=False,
+            output_facial_transformation_matrixes=True,
         )
         self.landmarker = vision.FaceLandmarker.create_from_options(opts)
 
@@ -76,32 +90,24 @@ class FacePoseDetector:
         if result is None or not result.face_landmarks:
             return self.res
 
-        for face_landmarks in result.face_landmarks:
-            image_points = np.array([
-                [face_landmarks[idx].x * w,
-                 face_landmarks[idx].y * h]
-                for idx in LANDMARK_INDICES
-            ], dtype=np.float64)
+        transforms = (result.facial_transformation_matrixes
+                      if result.facial_transformation_matrixes else [])
 
-            success, rvec, tvec = cv2.solvePnP(
-                MODEL_POINTS, image_points,
-                self.camera_matrix, self.dist_coeffs,
-                flags=cv2.SOLVEPNP_ITERATIVE,
-            )
-
-            if not success:
+        for i, face_landmarks in enumerate(result.face_landmarks):
+            if i >= len(transforms):
                 continue
 
-            R, _ = cv2.Rodrigues(rvec)
-            sy = np.sqrt(R[0, 0] ** 2 + R[1, 0] ** 2)
-            if sy < 1e-6:
-                yaw = np.arctan2(-R[1, 2], R[1, 1])
-                pitch = np.arctan2(-R[2, 0], sy)
-                roll = 0.0
-            else:
-                yaw = np.arctan2(R[1, 0], R[0, 0])
-                pitch = np.arctan2(-R[2, 0], sy)
-                roll = np.arctan2(R[2, 1], R[2, 2])
+            T = np.array(transforms[i], dtype=np.float64)
+            R_mat = T[:3, :3]
+            tvec = T[:3, 3].reshape(3, 1)
+            rvec, _ = cv2.Rodrigues(R_mat)
+
+            roll, pitch, yaw = _mat_to_euler(R_mat)
+
+            image_points = np.array([
+                [face_landmarks[idx].x * w, face_landmarks[idx].y * h]
+                for idx in LANDMARK_INDICES
+            ], dtype=np.float64)
 
             self.res.append({
                 "rvec": rvec,
