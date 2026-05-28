@@ -31,7 +31,7 @@ def _fast_ekf_predict(X, P, F, Q):
 
 
 @njit(fastmath=True, nogil=True)
-def _fast_ekf_update_inplace(X, P, H, R, Y, I):
+def _fast_ekf_update_inplace(X, P, H, R, Y, I, mahalanobis_threshold=200.0):
     """
     EKF 更新步骤（原地操作，零拷贝）
 
@@ -68,7 +68,7 @@ def _fast_ekf_update_inplace(X, P, H, R, Y, I):
     # --------- 野值检测 (Outlier Rejection / Gating) ---------
     # 马氏距离服从 χ²(6) 卡方分布，阈值 200 对应极低假阳性率
     # 若当前观测与预测值偏差过大（被遮挡、误匹配等），直接丢弃此次更新
-    if mahalanobis_sq > 200.0:
+    if mahalanobis_sq > mahalanobis_threshold:
         return False
 
     # --------- 计算卡尔曼增益 K ---------
@@ -164,6 +164,9 @@ class KalmanFilter6D:
         self.s2q_pos = 10.0
         self.s2q_rot = 100.0
 
+        # ---- 马氏距离门控阈值（可调参数） ----
+        self.mahalanobis_threshold = 200.0
+
         # ---- 观测噪声系数（可调参数） ----
         # r_pos_factor: 平移观测噪声因子，乘以距离得到对角线噪声
         # r_rot_factor: 旋转观测噪声基准值，再乘以距离因子
@@ -194,12 +197,13 @@ class KalmanFilter6D:
         dummy_I = np.eye(12, dtype=np.float64)
 
         _fast_ekf_predict(dummy_X, dummy_P, dummy_F, dummy_Q)
-        _fast_ekf_update_inplace(dummy_X, dummy_P, dummy_H, dummy_R, dummy_Y, dummy_I)
+        _fast_ekf_update_inplace(dummy_X, dummy_P, dummy_H, dummy_R, dummy_Y, dummy_I, 200.0)
 
     # ============================================================
     # 设置噪声参数
     # ============================================================
-    def set_noise(self, q_pos=0.001, q_rot=0.1, r_pos_factor=0.01, r_rot_factor=0.5):
+    def set_noise(self, q_pos=0.001, q_rot=0.1, r_pos_factor=0.01, r_rot_factor=0.5,
+                  mahalanobis_threshold=200.0):
         """
         动态调整卡尔曼滤波器的噪声参数，用于在线调参。
 
@@ -214,11 +218,15 @@ class KalmanFilter6D:
                 越小 → 观测噪声越小 → 滤波器更信任原始观测，响应更快
             r_rot_factor (float): 旋转观测噪声基准值
                 含义同上，作用于 roll/pitch/yaw 观测
+            mahalanobis_threshold (float): 马氏距离平方门控阈值
+                越大 → 更宽松，允许更大的观测偏差（不容易跟丢）
+                越小 → 更严格，丢弃更多异常观测（平滑但可能丢失真实运动）
         """
         self.s2q_pos = q_pos
         self.s2q_rot = q_rot
         self.r_pos_factor = r_pos_factor
         self.r_rot_factor = r_rot_factor
+        self.mahalanobis_threshold = mahalanobis_threshold
 
     # ============================================================
     # 状态初始化
@@ -327,15 +335,15 @@ class KalmanFilter6D:
            新息反映了观测与预测的偏差程度。
 
         3. 调用 Numba 编译的更新函数，内含马氏距离门控 (gating)：
-           如果马氏距离 > sqrt(200) ≈ 14.14，则视为野值/误匹配，
-           直接丢弃此次更新（返回但状态不变）。
+           如果马氏距离平方 > mahalanobis_threshold，则视为野值/误匹配，
+           返回 False 表示丢弃此次更新（状态不更新）。
 
         参数:
             measurement (list/tuple/array): 6 元素观测值
                 [x_obs, y_obs, z_obs, roll_obs, pitch_obs, yaw_obs]
 
         返回:
-            np.ndarray: 更新后的状态向量 X (12,)
+            bool: True 表示更新成功，False 表示观测被马氏距离门控拒绝
         """
         Z = np.array(measurement, dtype=np.float64)
 
@@ -370,8 +378,8 @@ class KalmanFilter6D:
         Y = Z - Z_pred                 # 新息：观测值与预测值的差异
 
         # ---- 执行更新（含马氏距离门控） ----
-        _fast_ekf_update_inplace(self.X, self.P, self.H, self.R, Y, self.I)
-        return self.X
+        return _fast_ekf_update_inplace(self.X, self.P, self.H, self.R, Y, self.I,
+                                          self.mahalanobis_threshold)
 
     # ============================================================
     # 结果查询接口

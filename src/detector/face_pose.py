@@ -63,6 +63,16 @@ class FacePoseDetector:
         self.res = None
         self.camera_matrix = None
         self.dist_coeffs = np.zeros((4, 1), dtype=np.float64)
+        # --- 新增：标准 3D 人脸关键点模型 (X右, Y下, Z前) 单位: mm ---
+        # 这里的点位顺序必须与 LANDMARK_INDICES = [1, 33, 263, 61, 291, 199] 一一对应
+        self.model_points = np.array([
+            [0.0, 0.0, 0.0],             # 1: 鼻尖 (将坐标原点牢牢钉在鼻尖)
+            [-30.0, -30.0, -20.0],       # 33: 左眼角 (画面左侧)
+            [30.0, -30.0, -20.0],        # 263: 右眼角 (画面右侧)
+            [-15.0, 30.0, -10.0],        # 61: 左嘴角
+            [15.0, 30.0, -10.0],         # 291: 右嘴角
+            [0.0, 60.0, -15.0]           # 199: 下巴
+        ], dtype=np.float64)
 
     def detect(self, frame):
         if frame is None:
@@ -95,12 +105,39 @@ class FacePoseDetector:
                 continue
 
             T = np.array(transforms[i], dtype=np.float64)
-            R_mat = T[:3, :3]
-            tvec = T[:3, 3].reshape(3, 1)
-            rvec, _ = cv2.Rodrigues(R_mat)
 
-            roll, pitch, yaw = _mat_to_euler(R_mat)
+            # 1. 提取 MediaPipe 原生的旋转矩阵和平移向量
+            R_mp = T[:3, :3]
+            t_mp = T[:3, 3]
 
+            # 2. 坐标系转换 (MediaPipe OpenGL -> OpenCV 标准)
+            # S 矩阵用于反转 Y 轴和 Z 轴
+            S = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]], dtype=np.float64)
+            # R_cv = S @ R_mp @ S 既转换了相机坐标系，也翻转了物体局部坐标系
+            # 保证绘制出的 Y 轴指向下巴，Z 轴指向脑后
+            R_cv = S @ R_mp @ S
+            rvec, _ = cv2.Rodrigues(R_cv)
+            roll, pitch, yaw = _mat_to_euler(R_cv)
+
+            # 3. 平移解耦：利用 2D 鼻尖像素坐标反投影，将原点绝对锚定在鼻尖
+            # 鼻尖在 MediaPipe 中的索引为 1
+            nose_x = face_landmarks[1].x * w
+            nose_y = face_landmarks[1].y * h
+            
+            # MediaPipe 原生 t_mp[2] 是头部中心的负深度，取反得到正深度
+            # 鼻尖比头部中心更靠近相机，减去 20.0mm 作为深度补偿
+            depth = -t_mp[2] - 20.0 
+            
+            # 针孔相机反投影公式，利用你自定义的 camera_matrix
+            cx, cy = self.camera_matrix[0, 2], self.camera_matrix[1, 2]
+            fx, fy = self.camera_matrix[0, 0], self.camera_matrix[1, 1]
+            tx = (nose_x - cx) * depth / fx
+            ty = (nose_y - cy) * depth / fy
+            tz = depth
+            
+            tvec = np.array([[tx], [ty], [tz]], dtype=np.float64)
+
+            # 记录用于后续绘制的 2D 关键点
             image_points = np.array([
                 [face_landmarks[idx].x * w, face_landmarks[idx].y * h]
                 for idx in LANDMARK_INDICES
@@ -113,9 +150,9 @@ class FacePoseDetector:
                 "pitch": float(np.degrees(pitch)),
                 "roll": float(np.degrees(roll)),
                 "image_points": image_points,
-                "tx": float(tvec[0][0]),
-                "ty": float(tvec[1][0]),
-                "tz": float(tvec[2][0]),
+                "tx": float(tx),
+                "ty": float(ty),
+                "tz": float(tz),
             })
 
         return self.res

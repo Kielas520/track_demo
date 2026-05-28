@@ -9,53 +9,48 @@ from src.Kalmanfilter.Kalmanfilter6D import KalmanFilter6D
 # KF 噪声参数控制面板
 # ============================================================
 CONTROL_WIN = "KF Noise Control"
-PARAM_NAMES = ["q_pos", "q_rot", "r_pos_factor", "r_rot_factor"]
-DEFAULT_VALUES = [10.0, 100.0, 0.01, 0.5]
-PANEL_W, PANEL_H = 480, 360
+PARAM_NAMES = ["q_pos", "q_rot", "r_pos_factor", "r_rot_factor", "mahalanobis_threshold"]
+DEFAULT_VALUES = [10.0, 100.0, 0.01, 0.5, 200.0]
+PANEL_W, PANEL_H = 480, 420
 
 
 class NoisePanel:
     """用 cv2 窗口实现的可交互数值输入面板，用于动态调整卡尔曼噪声参数。"""
 
     def __init__(self):
-        self.values = list(DEFAULT_VALUES)      # 当前生效的值
-        self.edit_bufs = [str(v) for v in DEFAULT_VALUES]  # 编辑缓冲区（字符串）
-        self.selected = 0                        # 当前选中行索引
+        self.values = list(DEFAULT_VALUES)
+        self.edit_bufs = [str(v) for v in DEFAULT_VALUES]
+        self.selected = 0
         self.applied_values = list(DEFAULT_VALUES)
-        self.pending_apply = False               # 是否有待应用的变更
-        self._row_rects = []                     # 每行的点击区域 (y_start, y_end)
+        self.pending_apply = False
+        self._row_rects = []
 
     def get_values(self):
         return self.values
 
     def draw(self):
-        """绘制控制面板，返回 BGR 图像。"""
         img = np.zeros((PANEL_H, PANEL_W, 3), dtype=np.uint8)
         img[:] = (40, 40, 40)
 
-        row_h = PANEL_H // 6
+        n = len(PARAM_NAMES)
+        row_h = (PANEL_H - 30) // n
         for i, name in enumerate(PARAM_NAMES):
-            y = (i + 1) * row_h
-            # 高亮选中行
+            y = 20 + (i + 1) * row_h
             if i == self.selected:
                 cv2.rectangle(img, (5, y - row_h + 6), (PANEL_W - 5, y - 4), (60, 60, 60), -1)
 
-            # 参数名
             cv2.putText(img, name, (15, y - 12), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (180, 180, 180), 1)
 
-            # 当前生效值
             label = f"applied: {self.applied_values[i]:.5g}"
             cv2.putText(img, label, (15, y - 36), cv2.FONT_HERSHEY_SIMPLEX,
                         0.45, (120, 120, 120), 1)
 
-            # 编辑缓冲区（显示输入中的值）
             cursor = "|" if i == self.selected else ""
             buf_text = f"[ {self.edit_bufs[i]}{cursor} ]"
             color = (0, 220, 255) if i == self.selected else (200, 200, 200)
             cv2.putText(img, buf_text, (200, y - 12), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 1)
 
-        # 底部提示
-        hint_y = PANEL_H - 12
+        hint_y = PANEL_H - 8
         if self.pending_apply:
             cv2.putText(img, "ENTER: Apply & Restart KF | Click: select field",
                         (10, hint_y), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (0, 255, 255), 1)
@@ -63,32 +58,29 @@ class NoisePanel:
             cv2.putText(img, "Click to select | Type value | ENTER to apply",
                         (10, hint_y), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (140, 140, 140), 1)
 
-        # 保存行区域供点击检测
-        self._row_rects = [(i * row_h, (i + 1) * row_h) for i in range(len(PARAM_NAMES))]
+        self._row_rects = [(20 + i * row_h, 20 + (i + 1) * row_h) for i in range(n)]
         return img
 
     def handle_click(self, x, y):
-        """处理鼠标点击，选中对应行。"""
         for i, (y0, y1) in enumerate(self._row_rects):
             if y0 <= y < y1:
                 self.selected = i
                 return
 
     def handle_key(self, key_char):
-        """处理键盘输入，返回 True 表示触发了 apply + restart。"""
-        if key_char == '\r':  # Enter
+        if key_char == '\r':
             if self.pending_apply:
                 self._apply()
                 return True
             return False
-        elif key_char == '\x1b':  # Escape
+        elif key_char == '\x1b':
             self.edit_bufs[self.selected] = str(self.applied_values[self.selected])
             self._check_pending()
             return False
-        elif key_char == '\t':  # Tab
+        elif key_char == '\t':
             self.selected = (self.selected + 1) % len(PARAM_NAMES)
             return False
-        elif key_char == '\x7f':  # Backspace
+        elif key_char == '\x7f':
             if len(self.edit_bufs[self.selected]) > 0:
                 self.edit_bufs[self.selected] = self.edit_bufs[self.selected][:-1]
             self._check_pending()
@@ -100,7 +92,6 @@ class NoisePanel:
         return False
 
     def parse_and_validate(self):
-        """尝试解析编辑缓冲区为浮点数，返回 list[float] 或 None。"""
         result = []
         for buf in self.edit_bufs:
             try:
@@ -148,9 +139,6 @@ def on_trackbar(val):
     pass
 
 
-# ============================================================
-# 鼠标回调：将点击转发给 NoisePanel
-# ============================================================
 def _make_mouse_cb(panel):
     def cb(event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN:
@@ -167,12 +155,10 @@ def main():
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
     cv2.createTrackbar("Font Scale", window_name, 6, 20, on_trackbar)
 
-    # ---- 控制面板窗口 ----
     panel = NoisePanel()
     cv2.namedWindow(CONTROL_WIN, cv2.WINDOW_AUTOSIZE)
     cv2.setMouseCallback(CONTROL_WIN, _make_mouse_cb(panel))
-    panel_img = panel.draw()
-    cv2.imshow(CONTROL_WIN, panel_img)
+    cv2.imshow(CONTROL_WIN, panel.draw())
 
     detector = FacePoseDetector(dis_mode=1, max_faces=1)
     kf = KalmanFilter6D()
@@ -234,11 +220,7 @@ def main():
                     current_state = f"JUMP RESET ({dist:.1f}mm)"
                 else:
                     kf.predict(dt)
-                    is_updated = True
-                    if hasattr(kf, 'update_with_status'):
-                        is_updated = kf.update_with_status([tx, ty, tz, roll, pitch, yaw])
-                    else:
-                        kf.update([tx, ty, tz, roll, pitch, yaw])
+                    is_updated = kf.update([tx, ty, tz, roll, pitch, yaw])
 
                     if not is_updated:
                         reject_count += 1
@@ -301,30 +283,28 @@ def main():
         cv2.imshow(window_name, output)
 
         # ---- 渲染控制面板 ----
-        panel_img = panel.draw()
-        cv2.imshow(CONTROL_WIN, panel_img)
+        cv2.imshow(CONTROL_WIN, panel.draw())
 
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
             break
 
         # ---- 键盘事件分发到控制面板 ----
-        if key == 13:  # Enter
+        if key == 13:
             if panel.handle_key('\r'):
-                # 应用新参数并重启卡尔曼
-                q_pos, q_rot, r_pos, r_rot = panel.applied_values
+                q_pos, q_rot, r_pos, r_rot, maha = panel.applied_values
                 kf.set_noise(q_pos=q_pos, q_rot=q_rot,
-                             r_pos_factor=r_pos, r_rot_factor=r_rot)
-                # 如果有当前观测值，用它重新初始化
+                             r_pos_factor=r_pos, r_rot_factor=r_rot,
+                             mahalanobis_threshold=maha)
                 if raw_pose:
                     kf.init_state(*raw_pose)
                 print(f"[NoisePanel] Applied: q_pos={q_pos}, q_rot={q_rot}, "
-                      f"r_pos={r_pos}, r_rot={r_rot}  (KF restarted)")
-        elif key == 27:  # Escape
+                      f"r_pos={r_pos}, r_rot={r_rot}, maha={maha}  (KF restarted)")
+        elif key == 27:
             panel.handle_key('\x1b')
-        elif key == 9:   # Tab
+        elif key == 9:
             panel.handle_key('\t')
-        elif key == 8 or key == 127:  # Backspace
+        elif key == 8 or key == 127:
             panel.handle_key('\x7f')
         elif key >= 32 and key < 127:
             panel.handle_key(chr(key))
