@@ -11,6 +11,14 @@ LANDMARK_INDICES = [1, 33, 263, 61, 291, 199]
 
 DEFAULT_MODEL = "models/face_landmarker.task"
 
+def _euler_to_rvec(roll, pitch, yaw):
+    r, p, y = np.radians(roll), np.radians(pitch), np.radians(yaw)
+    Rx = np.array([[1, 0, 0], [0, np.cos(r), -np.sin(r)], [0, np.sin(r), np.cos(r)]])
+    Ry = np.array([[np.cos(p), 0, np.sin(p)], [0, 1, 0], [-np.sin(p), 0, np.cos(p)]])
+    Rz = np.array([[np.cos(y), -np.sin(y), 0], [np.sin(y), np.cos(y), 0], [0, 0, 1]])
+    R = Rz @ Ry @ Rx
+    rvec, _ = cv2.Rodrigues(R)
+    return rvec
 
 def _mat_to_euler(R):
     sy = np.sqrt(R[0, 0] ** 2 + R[1, 0] ** 2)
