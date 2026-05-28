@@ -170,7 +170,7 @@ class FacePoseDetector:
         for face in res:
             cv2.drawFrameAxes(
                 self.img_res, self.camera_matrix, self.dist_coeffs,
-                face["rvec"], face["tvec"], 50,
+                face["rvec"], face["tvec"], length=5, thickness=10
             )
 
             for pt in face["image_points"]:

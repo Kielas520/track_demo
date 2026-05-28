@@ -114,27 +114,6 @@ class NoisePanel:
         self.edit_bufs = [str(v) for v in self.values]
         self.pending_apply = False
 
-
-# ============================================================
-# 绘制函数
-# ============================================================
-def _draw_kf_axis(img, camera_matrix, dist_coeffs, rvec, tvec, length=80):
-    axis_3d = np.float32([
-        [0, 0, 0],
-        [length, 0, 0],
-        [0, length, 0],
-        [0, 0, length],
-    ])
-    pts, _ = cv2.projectPoints(axis_3d, rvec, tvec, camera_matrix, dist_coeffs)
-    pts = pts.reshape(-1, 2).astype(int)
-    origin = tuple(pts[0])
-
-    cv2.line(img, origin, tuple(pts[1]), (0, 0, 255), 3)
-    cv2.line(img, origin, tuple(pts[2]), (0, 255, 0), 3)
-    cv2.line(img, origin, tuple(pts[3]), (255, 0, 0), 3)
-    cv2.circle(img, origin, 5, (255, 255, 255), -1)
-
-
 def on_trackbar(val):
     pass
 
@@ -277,8 +256,9 @@ def main():
 
             rvec_kf = _euler_to_rvec(froll, fpitch, fyaw)
             tvec_kf = np.array([[fx], [fy], [fz]], dtype=np.float64)
-            _draw_kf_axis(output, detector.camera_matrix,
-                          detector.dist_coeffs, rvec_kf, tvec_kf, length=80)
+            # 使用 OpenCV 内置函数绘制卡尔曼滤波后的位姿坐标轴
+            cv2.drawFrameAxes(output, detector.camera_matrix, detector.dist_coeffs,
+                            rvec_kf, tvec_kf, length=10, thickness=3)
 
         cv2.imshow(window_name, output)
 
