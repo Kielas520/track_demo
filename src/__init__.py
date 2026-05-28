@@ -18,7 +18,7 @@
 # 导入项目中的各个模块，以便于外部使用
 from .detector import Detector2D, FacePoseDetector
 from .tracker import TrackerManager
-from .Kalmanfilter import KalmanFilter3D, FaceKalmanFilter6D
+from .Kalmanfilter import KalmanFilter3D, KalmanFilter6D
 from .target import Target
 
 __all__ = [
@@ -26,6 +26,6 @@ __all__ = [
     'FacePoseDetector',
     'TrackerManager',
     'KalmanFilter3D',
-    'FaceKalmanFilter6D',
+    'KalmanFilter6D',
     'Target',
 ]

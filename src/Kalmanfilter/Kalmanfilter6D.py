@@ -20,9 +20,9 @@ def _fast_ekf_update_inplace(X, P, H, R, Y, I):
     return True
 
 
-class FaceKalmanFilter6D:
+class KalmanFilter6D:
     """
-    面部 6DOF 卡尔曼滤波器 (CV 匀速模型)
+    6DOF 卡尔曼滤波器 (CV 匀速模型)
 
     状态向量 (12x1):
         [x, vx, y, vy, z, vz, roll, vroll, pitch, vpitch, yaw, vyaw]
@@ -32,7 +32,7 @@ class FaceKalmanFilter6D:
 
     观测向量 (6x1):
         [x, y, z, roll, pitch, yaw]
-        - 来自 FacePoseDetector 的 SolvePnP 输出
+        - 来自 PoseDetector 的 SolvePnP 输出
     """
 
     def __init__(self):

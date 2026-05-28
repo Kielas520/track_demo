@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from src.detector.face_pose import FacePoseDetector, _euler_to_rvec
-from src.Kalmanfilter.Kalmanfilter6D import FaceKalmanFilter6D
+from src.Kalmanfilter.Kalmanfilter6D import KalmanFilter6D
 
 
 def _draw_kf_axis(img, camera_matrix, dist_coeffs, rvec, tvec, length=80):
@@ -27,7 +27,7 @@ def main():
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
 
     detector = FacePoseDetector(dis_mode=1, max_faces=1)
-    kf = FaceKalmanFilter6D()
+    kf = KalmanFilter6D()
     kf_initialized = False
 
     fx, fy, fz = 0.0, 0.0, 0.0
