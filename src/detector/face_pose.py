@@ -25,16 +25,6 @@ def _mat_to_euler(R):
     return roll, pitch, yaw
 
 
-def _euler_to_rvec(roll, pitch, yaw):
-    r, p, y = np.radians(roll), np.radians(pitch), np.radians(yaw)
-    Rx = np.array([[1, 0, 0], [0, np.cos(r), -np.sin(r)], [0, np.sin(r), np.cos(r)]])
-    Ry = np.array([[np.cos(p), 0, np.sin(p)], [0, 1, 0], [-np.sin(p), 0, np.cos(p)]])
-    Rz = np.array([[np.cos(y), -np.sin(y), 0], [np.sin(y), np.cos(y), 0], [0, 0, 1]])
-    R = Rz @ Ry @ Rx
-    rvec, _ = cv2.Rodrigues(R)
-    return rvec
-
-
 class FacePoseDetector:
     def __init__(self, dis_mode=1, max_faces=1,
                  min_detection_confidence=0.5,
