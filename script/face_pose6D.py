@@ -180,7 +180,10 @@ def main():
             face = detections[0]
             tx, ty, tz = face["tx"], face["ty"], face["tz"]
             roll, pitch, yaw = face["roll"], face["pitch"], face["yaw"]
+            # 改成用rvec
+            # rx, ry, rz = float(face["rvec"][0]), float(face["rvec"][1]), float(face["rvec"][2])
             z_obs = np.array([tx, ty, tz])
+
             raw_pose = (tx, ty, tz, roll, pitch, yaw)
 
             if not kf_initialized:
@@ -256,9 +259,10 @@ def main():
 
             rvec_kf = _euler_to_rvec(froll, fpitch, fyaw)
             tvec_kf = np.array([[fx], [fy], [fz]], dtype=np.float64)
+            
             # 使用 OpenCV 内置函数绘制卡尔曼滤波后的位姿坐标轴
             cv2.drawFrameAxes(output, detector.camera_matrix, detector.dist_coeffs,
-                            rvec_kf, tvec_kf, length=10, thickness=3)
+                            rvec_kf, tvec_kf, length=1.3, thickness=2)
 
         cv2.imshow(window_name, output)
 
